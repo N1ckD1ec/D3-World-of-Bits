@@ -1,6 +1,12 @@
 // @deno-types="npm:@types/leaflet"
 import leaflet from "leaflet";
 
+// Extend Rectangle type to include our custom properties
+type GameCell = leaflet.Rectangle & {
+  tokenValue: number;
+  tokenLabel: leaflet.Marker;
+};
+
 // Required stylesheets
 import "leaflet/dist/leaflet.css";
 import "./style.css";
@@ -37,7 +43,21 @@ function getCellColor(distance: number): string {
   return "#ff4a4a"; // Red for furthest cells
 }
 
-const _playerInventory: number | null = null; // Prefixed with _ until we use it
+// Player inventory and win condition
+let playerInventory: number | null = null;
+const TARGET_VALUE = 16; // Player wins when they get a token of this value
+
+// Function to update the status display
+function updateStatus() {
+  if (playerInventory === null) {
+    statusDiv.textContent = "No token in inventory";
+  } else if (playerInventory >= TARGET_VALUE) {
+    statusDiv.textContent =
+      `🎉 You won! You have a token of value ${playerInventory}`;
+  } else {
+    statusDiv.textContent = `Holding token with value: ${playerInventory}`;
+  }
+}
 
 // Function to create cell bounds from cell coordinates (i,j)
 function createCellBounds(i: number, j: number) {
@@ -91,7 +111,10 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
       const inRange = isInRange(i, j);
 
       // Generate a deterministic token value for this cell (1, 2, or 4)
-      const tokenValue = Math.pow(2, Math.floor(luck([i, j, "value"].toString()) * 3));
+      const tokenValue = Math.pow(
+        2,
+        Math.floor(luck([i, j, "value"].toString()) * 3),
+      );
 
       const cell = leaflet.rectangle(cellBounds, {
         color: "#30363d", // Dark gray border
@@ -99,24 +122,67 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
         fillColor: getCellColor(distance),
         fillOpacity: 0.7, // Slightly more opaque
         interactive: inRange, // Only cells in range can be clicked
-      });
+      }) as GameCell;
 
       // Create a permanent label showing the token value
       const center = cellBounds.getCenter();
       const label = leaflet.divIcon({
-        className: 'token-label',
+        className: "token-label",
         html: `<div>${tokenValue}</div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       });
-      
+
       const _marker = leaflet.marker(center, {
         icon: label,
-        interactive: false // Make sure clicks go through to the cell
+        interactive: false, // Make sure clicks go through to the cell
       }).addTo(map);
 
+      // Store the token value and label marker in cell's properties for later access
+      cell.tokenValue = tokenValue;
+      cell.tokenLabel = _marker;
+
       if (inRange) {
-        cell.bindTooltip(`Token value: ${tokenValue}`);
+        // Show appropriate tooltip based on current state
+        cell.bindTooltip(() => {
+          if (playerInventory === null) {
+            return `Click to pick up token (value: ${cell.tokenValue})`;
+          } else if (playerInventory === cell.tokenValue) {
+            return `Click to combine with your token (value: ${cell.tokenValue})`;
+          } else {
+            return `Has token with value: ${cell.tokenValue}`;
+          }
+        });
+
+        // Handle clicks on the cell
+        cell.on("click", () => {
+          if (playerInventory === null) {
+            // Pick up the token
+            playerInventory = cell.tokenValue;
+            cell.tokenLabel.remove(); // Remove the token label
+            cell.tokenValue = 0; // Mark cell as empty
+            cell.setStyle({ fillOpacity: 0.2 }); // Make cell look empty
+          } else if (playerInventory === cell.tokenValue) {
+            // Combine tokens
+            const newValue = playerInventory * 2;
+            playerInventory = null;
+            cell.tokenValue = newValue;
+            // Update the label
+            const center = cell.getBounds().getCenter();
+            cell.tokenLabel.remove();
+            cell.tokenLabel = leaflet.marker(center, {
+              icon: leaflet.divIcon({
+                className: "token-label",
+                html: `<div>${newValue}</div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10],
+              }),
+              interactive: false,
+            }).addTo(map);
+            cell.setStyle({ fillOpacity: 0.7 }); // Restore cell appearance
+          }
+          updateStatus();
+        });
       }
 
       cell.addTo(map);
@@ -124,5 +190,5 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
   }
 }
 
-// Set initial status
-statusDiv.textContent = "No token in inventory";
+// Set initial game status
+updateStatus();
