@@ -90,6 +90,9 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
       const distance = Math.max(Math.abs(i), Math.abs(j)); // Calculate distance from center
       const inRange = isInRange(i, j);
 
+      // Generate a deterministic token value for this cell (1, 2, or 4)
+      const tokenValue = Math.pow(2, Math.floor(luck([i, j, "value"].toString()) * 3));
+
       const cell = leaflet.rectangle(cellBounds, {
         color: "#30363d", // Dark gray border
         weight: 1, // Thinner border for smaller cells
@@ -98,8 +101,22 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
         interactive: inRange, // Only cells in range can be clicked
       });
 
+      // Create a permanent label showing the token value
+      const center = cellBounds.getCenter();
+      const label = leaflet.divIcon({
+        className: 'token-label',
+        html: `<div>${tokenValue}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+      
+      const _marker = leaflet.marker(center, {
+        icon: label,
+        interactive: false // Make sure clicks go through to the cell
+      }).addTo(map);
+
       if (inRange) {
-        cell.bindTooltip(`Cell (${i}, ${j})`);
+        cell.bindTooltip(`Token value: ${tokenValue}`);
       }
 
       cell.addTo(map);

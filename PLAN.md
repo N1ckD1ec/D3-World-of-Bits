@@ -25,7 +25,7 @@ Key gameplay challenge: Can players collect and craft tokens from nearby locatio
 - [x] add the player marker at the classroom location
 - [x] draw one rectangular grid cell on the map
 - [x] draw a grid of nearby/spread cells using loops
-- [ ] show token/value on each cell deterministically using `luck(seed)`
+- [x] show token/value on each cell deterministically using `luck(seed)`
 - [ ] allow clicking a nearby cell to pick up a token (max 1 in inventory)
 - [ ] allow placing a held token onto an equal-value cell token to combine (double value)
 - [ ] display inventory/status and a win message when held token >= target (e.g., 16)
