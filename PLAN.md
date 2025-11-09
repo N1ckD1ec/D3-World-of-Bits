@@ -23,8 +23,8 @@ Key gameplay challenge: Can players collect and craft tokens from nearby locatio
 - [x] delete everything in `src/main.ts`
 - [x] put a basic Leaflet map on the screen
 - [x] add the player marker at the classroom location
-- [ ] draw one rectangular grid cell on the map
-- [ ] draw a grid of nearby cells using loops
+- [x] draw one rectangular grid cell on the map
+- [x] draw a grid of nearby/spread cells using loops
 - [ ] show token/value on each cell deterministically using `luck(seed)`
 - [ ] allow clicking a nearby cell to pick up a token (max 1 in inventory)
 - [ ] allow placing a held token onto an equal-value cell token to combine (double value)

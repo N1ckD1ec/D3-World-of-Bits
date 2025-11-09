@@ -8,6 +8,9 @@ import "./style.css";
 // Fix missing marker images
 import "./_leafletWorkaround.ts";
 
+// Import luck function for deterministic randomness
+import luck from "./_luck.ts";
+
 // Create UI elements
 const mapDiv = document.createElement("div");
 mapDiv.id = "map";
@@ -22,16 +25,26 @@ const CLASSROOM_LOCATION = [36.997936938057016, -122.05703507501151] as [
   number,
   number,
 ];
-const CELL_SIZE_DEGREES = 0.0001; // Size of each cell in degrees
+const CELL_SIZE_DEGREES = 0.0002; // Increased cell size for more spacing
+const GRID_SIZE = 10; // Increased grid size for more possible locations
+const INTERACTION_RANGE = 3; // How many cells away the player can interact with
+const SPAWN_CHANCE = 0.2; // 20% chance for a cell to appear
 const _playerInventory: number | null = null; // Prefixed with _ until we use it
 
-// Function to create cell bounds from center point
-function createCellBounds(centerLat: number, centerLng: number) {
-  const halfSize = CELL_SIZE_DEGREES / 2;
+// Function to create cell bounds from cell coordinates (i,j)
+function createCellBounds(i: number, j: number) {
+  const [centerLat, centerLng] = CLASSROOM_LOCATION;
+  const cellLat = centerLat + (i * CELL_SIZE_DEGREES);
+  const cellLng = centerLng + (j * CELL_SIZE_DEGREES);
   return leaflet.latLngBounds(
-    [centerLat - halfSize, centerLng - halfSize], // Southwest corner
-    [centerLat + halfSize, centerLng + halfSize], // Northeast corner
+    [cellLat, cellLng], // Southwest corner
+    [cellLat + CELL_SIZE_DEGREES, cellLng + CELL_SIZE_DEGREES], // Northeast corner
   );
+}
+
+// Function to check if a cell is within interaction range
+function isInRange(i: number, j: number): boolean {
+  return Math.abs(i) <= INTERACTION_RANGE && Math.abs(j) <= INTERACTION_RANGE;
 }
 
 // Set up the map centered on the UCSC Science Hill area
@@ -60,16 +73,30 @@ const playerMarker = leaflet.marker(CLASSROOM_LOCATION, {
 playerMarker.bindTooltip("You are here!");
 playerMarker.addTo(map);
 
-// Draw a cell centered at the classroom location
-const [lat, lng] = CLASSROOM_LOCATION;
-const cellBounds = createCellBounds(lat, lng);
-const cell = leaflet.rectangle(cellBounds, {
-  color: "#30363d", // Dark gray border
-  weight: 2, // Border width
-  fillColor: "#ffffff", // White fill
-  fillOpacity: 0.5, // Semi-transparent
-});
-cell.addTo(map);
+// Draw scattered cells
+for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
+  for (let j = -GRID_SIZE; j <= GRID_SIZE; j++) {
+    // Use luck function to deterministically decide if this cell should appear
+    if (luck([i, j, "spawn"].toString()) < SPAWN_CHANCE) {
+      const cellBounds = createCellBounds(i, j);
+      const inRange = isInRange(i, j);
+
+      const cell = leaflet.rectangle(cellBounds, {
+        color: "#30363d", // Dark gray border
+        weight: 2, // Border width
+        fillColor: inRange ? "#ffffff" : "#cccccc", // White if in range, gray if not
+        fillOpacity: 0.5, // Semi-transparent
+        interactive: inRange, // Only cells in range can be clicked
+      });
+
+      if (inRange) {
+        cell.bindTooltip(`Cell (${i}, ${j})`);
+      }
+
+      cell.addTo(map);
+    }
+  }
+}
 
 // Set initial status
 statusDiv.textContent = "No token in inventory";
