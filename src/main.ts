@@ -25,10 +25,18 @@ const CLASSROOM_LOCATION = [36.997936938057016, -122.05703507501151] as [
   number,
   number,
 ];
-const CELL_SIZE_DEGREES = 0.0002; // Increased cell size for more spacing
-const GRID_SIZE = 10; // Increased grid size for more possible locations
+const CELL_SIZE_DEGREES = 0.00008; // Smaller cell size
+const GRID_SIZE = 10; // Grid size for possible locations
 const INTERACTION_RANGE = 3; // How many cells away the player can interact with
 const SPAWN_CHANCE = 0.2; // 20% chance for a cell to appear
+
+// Function to get cell color based on distance
+function getCellColor(distance: number): string {
+  if (distance <= 2) return "#ffffff"; // White for closest cells
+  if (distance <= 5) return "#4a9eff"; // Blue for medium distance
+  return "#ff4a4a"; // Red for furthest cells
+}
+
 const _playerInventory: number | null = null; // Prefixed with _ until we use it
 
 // Function to create cell bounds from cell coordinates (i,j)
@@ -79,13 +87,14 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
     // Use luck function to deterministically decide if this cell should appear
     if (luck([i, j, "spawn"].toString()) < SPAWN_CHANCE) {
       const cellBounds = createCellBounds(i, j);
+      const distance = Math.max(Math.abs(i), Math.abs(j)); // Calculate distance from center
       const inRange = isInRange(i, j);
 
       const cell = leaflet.rectangle(cellBounds, {
         color: "#30363d", // Dark gray border
-        weight: 2, // Border width
-        fillColor: inRange ? "#ffffff" : "#cccccc", // White if in range, gray if not
-        fillOpacity: 0.5, // Semi-transparent
+        weight: 1, // Thinner border for smaller cells
+        fillColor: getCellColor(distance),
+        fillOpacity: 0.7, // Slightly more opaque
         interactive: inRange, // Only cells in range can be clicked
       });
 
