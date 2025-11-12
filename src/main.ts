@@ -132,7 +132,6 @@ function createCell(cellId: CellId): GameCell | null {
     Math.abs(cellId.i - playerCellPosition.i),
     Math.abs(cellId.j - playerCellPosition.j),
   );
-  const inRange = isInRange(cellId.i, cellId.j);
   const tokenValue = Math.pow(
     2,
     Math.floor(luck([cellId.i, cellId.j, "value"].toString()) * 3),
@@ -143,7 +142,7 @@ function createCell(cellId: CellId): GameCell | null {
     weight: 1,
     fillColor: getCellColor(distance),
     fillOpacity: 0.7,
-    interactive: inRange,
+    interactive: true, // Always interactive so clicks work from any distance
   }) as GameCell;
 
   const center = cellIdToCenterLatLng(cellId);
@@ -162,43 +161,43 @@ function createCell(cellId: CellId): GameCell | null {
   cell.tokenValue = tokenValue;
   cell.tokenLabel = _marker;
 
-  if (inRange) {
-    cell.bindTooltip(() => {
-      if (playerInventory === null) {
-        return `Click to pick up token (value: ${cell.tokenValue})`;
-      } else if (playerInventory === cell.tokenValue) {
-        return `Click to combine with your token (value: ${cell.tokenValue})`;
-      } else {
-        return `Has token with value: ${cell.tokenValue}`;
-      }
-    });
+  // Always bind tooltip and click handler, regardless of range
+  // This ensures cells can be interacted with when the player moves into range
+  cell.bindTooltip(() => {
+    if (playerInventory === null) {
+      return `Click to pick up token (value: ${cell.tokenValue})`;
+    } else if (playerInventory === cell.tokenValue) {
+      return `Click to combine with your token (value: ${cell.tokenValue})`;
+    } else {
+      return `Has token with value: ${cell.tokenValue}`;
+    }
+  });
 
-    cell.on("click", () => {
-      if (playerInventory === null) {
-        playerInventory = cell.tokenValue;
-        cell.tokenLabel.remove();
-        cell.tokenValue = 0;
-        cell.setStyle({ fillOpacity: 0.2 });
-      } else if (playerInventory === cell.tokenValue) {
-        const newValue = playerInventory * 2;
-        playerInventory = null;
-        cell.tokenValue = newValue;
-        const center = cellIdToCenterLatLng(cellId);
-        cell.tokenLabel.remove();
-        cell.tokenLabel = leaflet.marker(center, {
-          icon: leaflet.divIcon({
-            className: "token-label",
-            html: `<div>${newValue}</div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-          }),
-          interactive: false,
-        }).addTo(map);
-        cell.setStyle({ fillOpacity: 0.7 });
-      }
-      updateStatus();
-    });
-  }
+  cell.on("click", () => {
+    if (playerInventory === null) {
+      playerInventory = cell.tokenValue;
+      cell.tokenLabel.remove();
+      cell.tokenValue = 0;
+      cell.setStyle({ fillOpacity: 0.2 });
+    } else if (playerInventory === cell.tokenValue) {
+      const newValue = playerInventory * 2;
+      playerInventory = null;
+      cell.tokenValue = newValue;
+      const center = cellIdToCenterLatLng(cellId);
+      cell.tokenLabel.remove();
+      cell.tokenLabel = leaflet.marker(center, {
+        icon: leaflet.divIcon({
+          className: "token-label",
+          html: `<div>${newValue}</div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        }),
+        interactive: false,
+      }).addTo(map);
+      cell.setStyle({ fillOpacity: 0.7 });
+    }
+    updateStatus();
+  });
 
   cell.addTo(map);
   return cell;
@@ -237,6 +236,27 @@ function _createCellBounds(i: number, j: number) {
   );
 }
 
+// Function to update colors of all visible cells based on player distance
+function updateCellColors() {
+  visibleCells.forEach((cell, cellKey) => {
+    const [i, j] = cellKey.split(",").map(Number);
+    const distance = Math.max(
+      Math.abs(i - playerCellPosition.i),
+      Math.abs(j - playerCellPosition.j),
+    );
+    cell.setStyle({ fillColor: getCellColor(distance) });
+  });
+}
+
+// Function to update interactivity of all visible cells based on player distance
+function updateCellInteractivity() {
+  visibleCells.forEach((cell, cellKey) => {
+    const [i, j] = cellKey.split(",").map(Number);
+    const inRange = isInRange(i, j);
+    cell.setStyle({ interactive: inRange });
+  });
+}
+
 // Function to move the player in a direction
 function movePlayer(directionI: number, directionJ: number) {
   playerCellPosition.i += directionI;
@@ -248,6 +268,10 @@ function movePlayer(directionI: number, directionJ: number) {
 
   // Center map on new position
   map.setView(newPos);
+
+  // Update cell colors and interactivity based on new distance
+  updateCellColors();
+  updateCellInteractivity();
 }
 
 // Function to check if a cell is within interaction range of the player
@@ -258,8 +282,8 @@ function isInRange(cellI: number, cellJ: number): boolean {
 }
 
 // Attach button event listeners
-northBtn.addEventListener("click", () => movePlayer(-1, 0));
-southBtn.addEventListener("click", () => movePlayer(1, 0));
+northBtn.addEventListener("click", () => movePlayer(1, 0));
+southBtn.addEventListener("click", () => movePlayer(-1, 0));
 westBtn.addEventListener("click", () => movePlayer(0, -1));
 eastBtn.addEventListener("click", () => movePlayer(0, 1));
 

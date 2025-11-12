@@ -42,5 +42,7 @@ Key gameplay challenge: Can players navigate the map to find and combine tokens 
 - [x] track player's current cell position separately from marker position
 - [x] implement map moveend event listener to detect when map finishes moving
 - [x] dynamically spawn and despawn cells based on visible area
-- [ ] use Null Island (0, 0) as the anchor point for the global coordinate system
-- [ ] cells forget their state when despawned (memoryless behavior)
+- [x] display inventory/status and a win message when held token >= target (e.g., 16)
+- [x] cells forget their state when despawned (memoryless behavior)
+- [x] cells change color when player moves closer or further away
+- [x] cells become interactive only when player is close enough to pick up token
