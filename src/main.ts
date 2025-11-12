@@ -68,7 +68,7 @@ const INTERACTION_RANGE = 3; // How many cells away the player can interact with
 const SPAWN_CHANCE = 0.2; // 20% chance for a cell to appear
 
 // Function to convert latitude/longitude to cell coordinates
-function latLngToCellId(lat: number, lng: number): CellId {
+function _latLngToCellId(lat: number, lng: number): CellId {
   const [centerLat, centerLng] = CLASSROOM_LOCATION;
   const i = Math.floor((lat - centerLat) / CELL_SIZE_DEGREES);
   const j = Math.floor((lng - centerLng) / CELL_SIZE_DEGREES);
@@ -110,7 +110,7 @@ let playerInventory: number | null = null;
 const TARGET_VALUE = 16; // Player wins when they get a token of this value
 
 // Player position tracking (in grid coordinates)
-let playerCellPosition: CellId = { i: 0, j: 0 };
+const playerCellPosition: CellId = { i: 0, j: 0 };
 
 // Function to update the status display
 function updateStatus() {
@@ -125,7 +125,7 @@ function updateStatus() {
 }
 
 // Function to create cell bounds from cell coordinates (i,j)
-function createCellBounds(i: number, j: number) {
+function _createCellBounds(i: number, j: number) {
   const [centerLat, centerLng] = CLASSROOM_LOCATION;
   const cellLat = centerLat + (i * CELL_SIZE_DEGREES);
   const cellLng = centerLng + (j * CELL_SIZE_DEGREES);
@@ -175,6 +175,25 @@ leaflet
       '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   })
   .addTo(map);
+
+// Listen for map movement events
+map.on("moveend", () => {
+  const center = map.getCenter();
+  const bounds = map.getBounds();
+
+  // Log the current view for debugging
+  console.log("Map moved:", {
+    center: { lat: center.lat, lng: center.lng },
+    bounds: {
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+    },
+  });
+
+  // TODO: Update visible cells based on current map bounds
+});
 
 // Add the player marker at the classroom location with custom color
 const playerMarker = leaflet.marker(CLASSROOM_LOCATION, {
