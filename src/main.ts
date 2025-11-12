@@ -52,13 +52,25 @@ function latLngToCellId(lat: number, lng: number): CellId {
 
 // Function to convert cell coordinates to latitude/longitude bounds
 function cellIdToBounds(cellId: CellId): leaflet.LatLngBounds {
+  const sw = cellIdToSWLatLng(cellId);
+  const ne = [sw[0] + CELL_SIZE_DEGREES, sw[1] + CELL_SIZE_DEGREES];
+  return leaflet.latLngBounds(sw, ne as [number, number]);
+}
+
+// Function to get the southwest corner of a cell
+function cellIdToSWLatLng(cellId: CellId): [number, number] {
+  // For now, still anchored at CLASSROOM_LOCATION
   const [centerLat, centerLng] = CLASSROOM_LOCATION;
-  const cellLat = centerLat + (cellId.i * CELL_SIZE_DEGREES);
-  const cellLng = centerLng + (cellId.j * CELL_SIZE_DEGREES);
-  return leaflet.latLngBounds(
-    [cellLat, cellLng], // Southwest corner
-    [cellLat + CELL_SIZE_DEGREES, cellLng + CELL_SIZE_DEGREES], // Northeast corner
-  );
+  return [
+    centerLat + (cellId.i * CELL_SIZE_DEGREES),
+    centerLng + (cellId.j * CELL_SIZE_DEGREES),
+  ];
+}
+
+// Function to get the center of a cell
+function cellIdToCenterLatLng(cellId: CellId): [number, number] {
+  const sw = cellIdToSWLatLng(cellId);
+  return [sw[0] + CELL_SIZE_DEGREES / 2, sw[1] + CELL_SIZE_DEGREES / 2];
 }
 
 // Function to get cell color based on distance
@@ -129,46 +141,37 @@ playerMarker.addTo(map);
 // Draw scattered cells
 for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
   for (let j = -GRID_SIZE; j <= GRID_SIZE; j++) {
-    // Use luck function to deterministically decide if this cell should appear
+    const cellId: CellId = { i, j };
     if (luck([i, j, "spawn"].toString()) < SPAWN_CHANCE) {
-      const cellBounds = createCellBounds(i, j);
-      const distance = Math.max(Math.abs(i), Math.abs(j)); // Calculate distance from center
+      const cellBounds = cellIdToBounds(cellId);
+      const distance = Math.max(Math.abs(i), Math.abs(j));
       const inRange = isInRange(i, j);
-
-      // Generate a deterministic token value for this cell (1, 2, or 4)
       const tokenValue = Math.pow(
         2,
         Math.floor(luck([i, j, "value"].toString()) * 3),
       );
-
       const cell = leaflet.rectangle(cellBounds, {
-        color: "#30363d", // Dark gray border
-        weight: 1, // Thinner border for smaller cells
+        color: "#30363d",
+        weight: 1,
         fillColor: getCellColor(distance),
-        fillOpacity: 0.7, // Slightly more opaque
-        interactive: inRange, // Only cells in range can be clicked
+        fillOpacity: 0.7,
+        interactive: inRange,
       }) as GameCell;
-
-      // Create a permanent label showing the token value
-      const center = cellBounds.getCenter();
+      // Use the new helper to get the cell center
+      const center = cellIdToCenterLatLng(cellId);
       const label = leaflet.divIcon({
         className: "token-label",
         html: `<div>${tokenValue}</div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       });
-
       const _marker = leaflet.marker(center, {
         icon: label,
-        interactive: false, // Make sure clicks go through to the cell
+        interactive: false,
       }).addTo(map);
-
-      // Store the token value and label marker in cell's properties for later access
       cell.tokenValue = tokenValue;
       cell.tokenLabel = _marker;
-
       if (inRange) {
-        // Show appropriate tooltip based on current state
         cell.bindTooltip(() => {
           if (playerInventory === null) {
             return `Click to pick up token (value: ${cell.tokenValue})`;
@@ -178,22 +181,17 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
             return `Has token with value: ${cell.tokenValue}`;
           }
         });
-
-        // Handle clicks on the cell
         cell.on("click", () => {
           if (playerInventory === null) {
-            // Pick up the token
             playerInventory = cell.tokenValue;
-            cell.tokenLabel.remove(); // Remove the token label
-            cell.tokenValue = 0; // Mark cell as empty
-            cell.setStyle({ fillOpacity: 0.2 }); // Make cell look empty
+            cell.tokenLabel.remove();
+            cell.tokenValue = 0;
+            cell.setStyle({ fillOpacity: 0.2 });
           } else if (playerInventory === cell.tokenValue) {
-            // Combine tokens
             const newValue = playerInventory * 2;
             playerInventory = null;
             cell.tokenValue = newValue;
-            // Update the label
-            const center = cell.getBounds().getCenter();
+            const center = cellIdToCenterLatLng(cellId);
             cell.tokenLabel.remove();
             cell.tokenLabel = leaflet.marker(center, {
               icon: leaflet.divIcon({
@@ -204,12 +202,11 @@ for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
               }),
               interactive: false,
             }).addTo(map);
-            cell.setStyle({ fillOpacity: 0.7 }); // Restore cell appearance
+            cell.setStyle({ fillOpacity: 0.7 });
           }
           updateStatus();
         });
       }
-
       cell.addTo(map);
     }
   }
