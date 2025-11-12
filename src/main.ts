@@ -63,7 +63,7 @@ const CLASSROOM_LOCATION = [36.997936938057016, -122.05703507501151] as [
   number,
 ];
 const CELL_SIZE_DEGREES = 0.00008; // Smaller cell size
-const GRID_SIZE = 10; // Grid size for possible locations
+const _GRID_SIZE = 10; // Grid size for possible locations (legacy, now using dynamic spawning)
 const INTERACTION_RANGE = 3; // How many cells away the player can interact with
 const SPAWN_CHANCE = 0.2; // 20% chance for a cell to appear
 
@@ -111,6 +111,108 @@ const TARGET_VALUE = 16; // Player wins when they get a token of this value
 
 // Player position tracking (in grid coordinates)
 const playerCellPosition: CellId = { i: 0, j: 0 };
+
+// Map to store currently visible cells on screen by their cell ID key
+const visibleCells = new Map<string, GameCell>();
+
+// Helper function to create a unique key for a cell
+function getCellKey(cellId: CellId): string {
+  return `${cellId.i},${cellId.j}`;
+}
+
+// Function to create and render a cell on the map
+function createCell(cellId: CellId): GameCell | null {
+  // Only spawn if luck determines this cell should exist
+  if (luck([cellId.i, cellId.j, "spawn"].toString()) >= SPAWN_CHANCE) {
+    return null;
+  }
+
+  const cellBounds = cellIdToBounds(cellId);
+  const distance = Math.max(
+    Math.abs(cellId.i - playerCellPosition.i),
+    Math.abs(cellId.j - playerCellPosition.j),
+  );
+  const inRange = isInRange(cellId.i, cellId.j);
+  const tokenValue = Math.pow(
+    2,
+    Math.floor(luck([cellId.i, cellId.j, "value"].toString()) * 3),
+  );
+
+  const cell = leaflet.rectangle(cellBounds, {
+    color: "#30363d",
+    weight: 1,
+    fillColor: getCellColor(distance),
+    fillOpacity: 0.7,
+    interactive: inRange,
+  }) as GameCell;
+
+  const center = cellIdToCenterLatLng(cellId);
+  const label = leaflet.divIcon({
+    className: "token-label",
+    html: `<div>${tokenValue}</div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+
+  const _marker = leaflet.marker(center, {
+    icon: label,
+    interactive: false,
+  }).addTo(map);
+
+  cell.tokenValue = tokenValue;
+  cell.tokenLabel = _marker;
+
+  if (inRange) {
+    cell.bindTooltip(() => {
+      if (playerInventory === null) {
+        return `Click to pick up token (value: ${cell.tokenValue})`;
+      } else if (playerInventory === cell.tokenValue) {
+        return `Click to combine with your token (value: ${cell.tokenValue})`;
+      } else {
+        return `Has token with value: ${cell.tokenValue}`;
+      }
+    });
+
+    cell.on("click", () => {
+      if (playerInventory === null) {
+        playerInventory = cell.tokenValue;
+        cell.tokenLabel.remove();
+        cell.tokenValue = 0;
+        cell.setStyle({ fillOpacity: 0.2 });
+      } else if (playerInventory === cell.tokenValue) {
+        const newValue = playerInventory * 2;
+        playerInventory = null;
+        cell.tokenValue = newValue;
+        const center = cellIdToCenterLatLng(cellId);
+        cell.tokenLabel.remove();
+        cell.tokenLabel = leaflet.marker(center, {
+          icon: leaflet.divIcon({
+            className: "token-label",
+            html: `<div>${newValue}</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          }),
+          interactive: false,
+        }).addTo(map);
+        cell.setStyle({ fillOpacity: 0.7 });
+      }
+      updateStatus();
+    });
+  }
+
+  cell.addTo(map);
+  return cell;
+}
+
+// Function to despawn a cell (remove it from map and visibleCells map)
+function despawnCell(cellKey: string): void {
+  const cell = visibleCells.get(cellKey);
+  if (cell) {
+    cell.tokenLabel.remove();
+    cell.remove();
+    visibleCells.delete(cellKey);
+  }
+}
 
 // Function to update the status display
 function updateStatus() {
@@ -178,21 +280,42 @@ leaflet
 
 // Listen for map movement events
 map.on("moveend", () => {
-  const center = map.getCenter();
   const bounds = map.getBounds();
 
-  // Log the current view for debugging
-  console.log("Map moved:", {
-    center: { lat: center.lat, lng: center.lng },
-    bounds: {
-      north: bounds.getNorth(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      west: bounds.getWest(),
-    },
+  // Convert map bounds to cell coordinates
+  const swCellId = _latLngToCellId(bounds.getSouth(), bounds.getWest());
+  const neCellId = _latLngToCellId(bounds.getNorth(), bounds.getEast());
+
+  // Add padding to spawn/despawn range for smooth transitions
+  const padding = 2;
+  const minI = swCellId.i - padding;
+  const maxI = neCellId.i + padding;
+  const minJ = swCellId.j - padding;
+  const maxJ = neCellId.j + padding;
+
+  // Spawn cells in the visible area
+  for (let i = minI; i <= maxI; i++) {
+    for (let j = minJ; j <= maxJ; j++) {
+      const cellKey = getCellKey({ i, j });
+      if (!visibleCells.has(cellKey)) {
+        const cell = createCell({ i, j });
+        if (cell) {
+          visibleCells.set(cellKey, cell);
+        }
+      }
+    }
+  }
+
+  // Despawn cells outside the visible area
+  const cellsToRemove: string[] = [];
+  visibleCells.forEach((_, cellKey) => {
+    const [i, j] = cellKey.split(",").map(Number);
+    if (i < minI || i > maxI || j < minJ || j > maxJ) {
+      cellsToRemove.push(cellKey);
+    }
   });
 
-  // TODO: Update visible cells based on current map bounds
+  cellsToRemove.forEach((cellKey) => despawnCell(cellKey));
 });
 
 // Add the player marker at the classroom location with custom color
@@ -206,79 +329,8 @@ const playerMarker = leaflet.marker(CLASSROOM_LOCATION, {
 playerMarker.bindTooltip("You are here!");
 playerMarker.addTo(map);
 
-// Draw scattered cells
-for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
-  for (let j = -GRID_SIZE; j <= GRID_SIZE; j++) {
-    const cellId: CellId = { i, j };
-    if (luck([i, j, "spawn"].toString()) < SPAWN_CHANCE) {
-      const cellBounds = cellIdToBounds(cellId);
-      const distance = Math.max(Math.abs(i), Math.abs(j));
-      const inRange = isInRange(i, j);
-      const tokenValue = Math.pow(
-        2,
-        Math.floor(luck([i, j, "value"].toString()) * 3),
-      );
-      const cell = leaflet.rectangle(cellBounds, {
-        color: "#30363d",
-        weight: 1,
-        fillColor: getCellColor(distance),
-        fillOpacity: 0.7,
-        interactive: inRange,
-      }) as GameCell;
-      // Use the new helper to get the cell center
-      const center = cellIdToCenterLatLng(cellId);
-      const label = leaflet.divIcon({
-        className: "token-label",
-        html: `<div>${tokenValue}</div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
-      const _marker = leaflet.marker(center, {
-        icon: label,
-        interactive: false,
-      }).addTo(map);
-      cell.tokenValue = tokenValue;
-      cell.tokenLabel = _marker;
-      if (inRange) {
-        cell.bindTooltip(() => {
-          if (playerInventory === null) {
-            return `Click to pick up token (value: ${cell.tokenValue})`;
-          } else if (playerInventory === cell.tokenValue) {
-            return `Click to combine with your token (value: ${cell.tokenValue})`;
-          } else {
-            return `Has token with value: ${cell.tokenValue}`;
-          }
-        });
-        cell.on("click", () => {
-          if (playerInventory === null) {
-            playerInventory = cell.tokenValue;
-            cell.tokenLabel.remove();
-            cell.tokenValue = 0;
-            cell.setStyle({ fillOpacity: 0.2 });
-          } else if (playerInventory === cell.tokenValue) {
-            const newValue = playerInventory * 2;
-            playerInventory = null;
-            cell.tokenValue = newValue;
-            const center = cellIdToCenterLatLng(cellId);
-            cell.tokenLabel.remove();
-            cell.tokenLabel = leaflet.marker(center, {
-              icon: leaflet.divIcon({
-                className: "token-label",
-                html: `<div>${newValue}</div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10],
-              }),
-              interactive: false,
-            }).addTo(map);
-            cell.setStyle({ fillOpacity: 0.7 });
-          }
-          updateStatus();
-        });
-      }
-      cell.addTo(map);
-    }
-  }
-}
-
-// Set initial game status
+// Set initial game status and render initial cells
 updateStatus();
+
+// Trigger initial cell rendering
+map.fire("moveend");
