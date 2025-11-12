@@ -38,7 +38,7 @@ Key gameplay challenge: Can players navigate the map to find and combine tokens 
 
 - [x] create a data type (CellId) to represent grid cells as i,j pairs
 - [x] create functions to convert lat/lng to cell coordinates and vice versa
-- [ ] add movement buttons to move player one grid step
+- [x] add movement buttons to move player one grid step
 - [ ] track player's current cell position separately from marker position
 - [ ] implement map moveend event listener to detect when map finishes moving
 - [ ] dynamically spawn and despawn cells based on visible area

@@ -32,6 +32,31 @@ const statusDiv = document.createElement("div");
 statusDiv.id = "statusPanel";
 document.body.append(statusDiv);
 
+const controlPanelDiv = document.createElement("div");
+controlPanelDiv.id = "controlPanel";
+document.body.append(controlPanelDiv);
+
+// Create movement buttons
+const northBtn = document.createElement("button");
+northBtn.textContent = "North (↑)";
+northBtn.id = "northBtn";
+controlPanelDiv.append(northBtn);
+
+const southBtn = document.createElement("button");
+southBtn.textContent = "South (↓)";
+southBtn.id = "southBtn";
+controlPanelDiv.append(southBtn);
+
+const westBtn = document.createElement("button");
+westBtn.textContent = "West (←)";
+westBtn.id = "westBtn";
+controlPanelDiv.append(westBtn);
+
+const eastBtn = document.createElement("button");
+eastBtn.textContent = "East (→)";
+eastBtn.id = "eastBtn";
+controlPanelDiv.append(eastBtn);
+
 // Initialize player state and game constants
 const CLASSROOM_LOCATION = [36.997936938057016, -122.05703507501151] as [
   number,
@@ -84,6 +109,9 @@ function getCellColor(distance: number): string {
 let playerInventory: number | null = null;
 const TARGET_VALUE = 16; // Player wins when they get a token of this value
 
+// Player position tracking (in grid coordinates)
+let playerCellPosition: CellId = { i: 0, j: 0 };
+
 // Function to update the status display
 function updateStatus() {
   if (playerInventory === null) {
@@ -107,10 +135,31 @@ function createCellBounds(i: number, j: number) {
   );
 }
 
-// Function to check if a cell is within interaction range
-function isInRange(i: number, j: number): boolean {
-  return Math.abs(i) <= INTERACTION_RANGE && Math.abs(j) <= INTERACTION_RANGE;
+// Function to move the player in a direction
+function movePlayer(directionI: number, directionJ: number) {
+  playerCellPosition.i += directionI;
+  playerCellPosition.j += directionJ;
+
+  // Update player marker position
+  const newPos = cellIdToCenterLatLng(playerCellPosition);
+  playerMarker.setLatLng(newPos);
+
+  // Center map on new position
+  map.setView(newPos);
 }
+
+// Function to check if a cell is within interaction range of the player
+function isInRange(cellI: number, cellJ: number): boolean {
+  const di = cellI - playerCellPosition.i;
+  const dj = cellJ - playerCellPosition.j;
+  return Math.abs(di) <= INTERACTION_RANGE && Math.abs(dj) <= INTERACTION_RANGE;
+}
+
+// Attach button event listeners
+northBtn.addEventListener("click", () => movePlayer(-1, 0));
+southBtn.addEventListener("click", () => movePlayer(1, 0));
+westBtn.addEventListener("click", () => movePlayer(0, -1));
+eastBtn.addEventListener("click", () => movePlayer(0, 1));
 
 // Set up the map centered on the UCSC Science Hill area
 const map = leaflet.map(mapDiv, {

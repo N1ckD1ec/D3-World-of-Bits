@@ -1,5 +1,24 @@
 #controlPanel {
   padding: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+}
+
+#controlPanel button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  transition: background-color 0.2s;
+}
+
+#controlPanel button:hover {
+  background-color: #e0e0e0;
 }
 
 #statusPanel {
