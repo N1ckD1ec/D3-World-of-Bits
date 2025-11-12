@@ -28,4 +28,19 @@ Key gameplay challenge: Can players collect and craft tokens from nearby locatio
 - [x] show token/value on each cell deterministically using `luck(seed)`
 - [x] allow clicking a nearby cell to pick up a token (max 1 in inventory)
 - [x] allow placing a held token onto an equal-value cell token to combine (double value)
-- [ ] display inventory/status and a win message when held token >= target (e.g., 16)
+
+## D3.b: Dynamic map and player movement
+
+Key technical challenge: Can you implement dynamic cell spawning/despawning as the player moves around the map?
+Key gameplay challenge: Can players navigate the map to find and combine tokens strategically?
+
+### Steps
+
+- [x] create a data type (CellId) to represent grid cells as i,j pairs
+- [ ] create functions to convert lat/lng to cell coordinates and vice versa
+- [ ] add movement buttons to move player one grid step
+- [ ] track player's current cell position separately from marker position
+- [ ] implement map moveend event listener to detect when map finishes moving
+- [ ] dynamically spawn and despawn cells based on visible area
+- [ ] use Null Island (0, 0) as the anchor point for the global coordinate system
+- [ ] cells forget their state when despawned (memoryless behavior)

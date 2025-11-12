@@ -7,6 +7,12 @@ type GameCell = leaflet.Rectangle & {
   tokenLabel: leaflet.Marker;
 };
 
+// Cell identifier type - represents a grid cell as i,j coordinates
+type CellId = {
+  i: number;
+  j: number;
+};
+
 // Required stylesheets
 import "leaflet/dist/leaflet.css";
 import "./style.css";
@@ -35,6 +41,25 @@ const CELL_SIZE_DEGREES = 0.00008; // Smaller cell size
 const GRID_SIZE = 10; // Grid size for possible locations
 const INTERACTION_RANGE = 3; // How many cells away the player can interact with
 const SPAWN_CHANCE = 0.2; // 20% chance for a cell to appear
+
+// Function to convert latitude/longitude to cell coordinates
+function latLngToCellId(lat: number, lng: number): CellId {
+  const [centerLat, centerLng] = CLASSROOM_LOCATION;
+  const i = Math.floor((lat - centerLat) / CELL_SIZE_DEGREES);
+  const j = Math.floor((lng - centerLng) / CELL_SIZE_DEGREES);
+  return { i, j };
+}
+
+// Function to convert cell coordinates to latitude/longitude bounds
+function cellIdToBounds(cellId: CellId): leaflet.LatLngBounds {
+  const [centerLat, centerLng] = CLASSROOM_LOCATION;
+  const cellLat = centerLat + (cellId.i * CELL_SIZE_DEGREES);
+  const cellLng = centerLng + (cellId.j * CELL_SIZE_DEGREES);
+  return leaflet.latLngBounds(
+    [cellLat, cellLng], // Southwest corner
+    [cellLat + CELL_SIZE_DEGREES, cellLng + CELL_SIZE_DEGREES], // Northeast corner
+  );
+}
 
 // Function to get cell color based on distance
 function getCellColor(distance: number): string {
