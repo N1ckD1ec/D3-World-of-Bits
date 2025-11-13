@@ -135,6 +135,24 @@ function getCellKey(cellId: CellId): string {
   return `${cellId.i},${cellId.j}`;
 }
 
+// Function to get token value for a cell (from state map or generate via luck)
+// This implements the Flyweight pattern: unmodified cells use luck, modified cells use stored state
+function getCellTokenValue(cellId: CellId): number {
+  const cellKey = _getCellStateKey(cellId);
+  const storedCell = _cellStateMap.get(cellKey);
+
+  if (storedCell) {
+    // Cell state exists in the map (has been modified), use stored value
+    return storedCell.tokenValue;
+  } else {
+    // Cell hasn't been modified, generate value from luck (Flyweight - no storage needed)
+    return Math.pow(
+      2,
+      Math.floor(luck([cellId.i, cellId.j, "value"].toString()) * 3),
+    );
+  }
+}
+
 // Function to create and render a cell on the map
 function createCell(cellId: CellId): GameCell | null {
   // Only spawn if luck determines this cell should exist
@@ -147,10 +165,7 @@ function createCell(cellId: CellId): GameCell | null {
     Math.abs(cellId.i - playerCellPosition.i),
     Math.abs(cellId.j - playerCellPosition.j),
   );
-  const tokenValue = Math.pow(
-    2,
-    Math.floor(luck([cellId.i, cellId.j, "value"].toString()) * 3),
-  );
+  const tokenValue = getCellTokenValue(cellId);
 
   const cell = leaflet.rectangle(cellBounds, {
     color: "#30363d",
