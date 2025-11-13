@@ -271,14 +271,22 @@ function despawnCell(cellKey: string): void {
 
 // Function to update the status display
 function updateStatus() {
+  // Get memory efficiency info: how many cells are stored vs visible
+  const modifiedCellsCount = _cellStateMap.size;
+  const visibleCellsCount = visibleCells.size;
+  const memoryInfo =
+    `(Modified: ${modifiedCellsCount}, Visible: ${visibleCellsCount})`;
+
+  let mainStatus = "";
   if (playerInventory === null) {
-    statusDiv.textContent = "No token in inventory";
+    mainStatus = "No token in inventory";
   } else if (playerInventory >= TARGET_VALUE) {
-    statusDiv.textContent =
-      `🎉 You won! You have a token of value ${playerInventory}`;
+    mainStatus = `🎉 You won! You have a token of value ${playerInventory}`;
   } else {
-    statusDiv.textContent = `Holding token with value: ${playerInventory}`;
+    mainStatus = `Holding token with value: ${playerInventory}`;
   }
+
+  statusDiv.textContent = `${mainStatus} ${memoryInfo}`;
 }
 
 // Function to create cell bounds from cell coordinates (i,j)
@@ -313,6 +321,24 @@ function updateCellInteractivity() {
   });
 }
 
+// Function to verify and log Flyweight pattern efficiency
+// Demonstrates that unmodified cells don't use memory (not in _cellStateMap)
+function _logFlyweightPatternStatus() {
+  const modifiedCount = _cellStateMap.size;
+  const visibleCount = visibleCells.size;
+  const unmodifiedCount = visibleCount - modifiedCount;
+
+  console.log(
+    `[Flyweight Pattern] Modified cells in memory: ${modifiedCount}, Unmodified cells (generated on-the-fly): ${unmodifiedCount}, Total visible: ${visibleCount}`,
+  );
+
+  // Show which cells are modified
+  if (modifiedCount > 0) {
+    const modifiedKeys = Array.from(_cellStateMap.keys());
+    console.log(`Modified cell coordinates: ${modifiedKeys.join(", ")}`);
+  }
+}
+
 // Function to move the player in a direction
 function movePlayer(directionI: number, directionJ: number) {
   playerCellPosition.i += directionI;
@@ -328,6 +354,9 @@ function movePlayer(directionI: number, directionJ: number) {
   // Update cell colors and interactivity based on new distance
   updateCellColors();
   updateCellInteractivity();
+
+  // Log Flyweight pattern efficiency
+  _logFlyweightPatternStatus();
 }
 
 // Function to check if a cell is within interaction range of the player
