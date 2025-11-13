@@ -204,12 +204,19 @@ function createCell(cellId: CellId): GameCell | null {
   });
 
   cell.on("click", () => {
+    const cellKey = _getCellStateKey(cellId);
+
     if (playerInventory === null) {
+      // Player picks up token from this cell
       playerInventory = cell.tokenValue;
       cell.tokenLabel.remove();
       cell.tokenValue = 0;
       cell.setStyle({ fillOpacity: 0.2 });
+
+      // Persist the cell's new state (empty cell with tokenValue 0)
+      _cellStateMap.set(cellKey, { id: cellId, tokenValue: 0 });
     } else if (playerInventory === cell.tokenValue) {
+      // Player combines tokens
       const newValue = playerInventory * 2;
       playerInventory = null;
       cell.tokenValue = newValue;
@@ -225,6 +232,9 @@ function createCell(cellId: CellId): GameCell | null {
         interactive: false,
       }).addTo(map);
       cell.setStyle({ fillOpacity: 0.7 });
+
+      // Persist the cell's new state (combined token with higher value)
+      _cellStateMap.set(cellKey, { id: cellId, tokenValue: newValue });
     }
     updateStatus();
   });

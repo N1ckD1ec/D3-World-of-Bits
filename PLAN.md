@@ -57,7 +57,7 @@ Key gameplay challenge: Can players experience persistent cell state as they nav
 - [x] create a Cell data type to model cell state (coordinates + token value) separately from visual representation
 - [x] create a Map<CellId, Cell> to store the state of all cells (modified and unmodified)
 - [x] refactor to rebuild cell visuals from the state Map on each map movement
-- [ ] implement state persistence: when a cell is modified (token picked up or combined), update the state Map
+- [x] implement state persistence: when a cell is modified (token picked up or combined), update the state Map
 - [ ] implement state restoration: when a cell comes back into view, restore its state from the Map
 - [ ] cells with unmodified state (not in the Map) don't use memory until modified
 - [ ] test that cell states persist when scrolling off-screen and returning
