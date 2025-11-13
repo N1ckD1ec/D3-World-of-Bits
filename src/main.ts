@@ -4,7 +4,7 @@ import leaflet from "leaflet";
 // Extend Rectangle type to include our custom properties
 type GameCell = leaflet.Rectangle & {
   tokenValue: number;
-  tokenLabel: leaflet.Marker;
+  tokenLabel: leaflet.Marker | null;
 };
 
 // Cell identifier type - represents a grid cell as i,j coordinates
@@ -176,20 +176,30 @@ function createCell(cellId: CellId): GameCell | null {
   }) as GameCell;
 
   const center = cellIdToCenterLatLng(cellId);
-  const label = leaflet.divIcon({
-    className: "token-label",
-    html: `<div>${tokenValue}</div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-  });
 
-  const _marker = leaflet.marker(center, {
-    icon: label,
-    interactive: false,
-  }).addTo(map);
+  // Only create a token label if the cell has a token (tokenValue > 0)
+  let _marker: leaflet.Marker | null = null;
+  if (tokenValue > 0) {
+    const label = leaflet.divIcon({
+      className: "token-label",
+      html: `<div>${tokenValue}</div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+
+    _marker = leaflet.marker(center, {
+      icon: label,
+      interactive: false,
+    }).addTo(map);
+  }
 
   cell.tokenValue = tokenValue;
-  cell.tokenLabel = _marker;
+  cell.tokenLabel = _marker as leaflet.Marker;
+
+  // Restore visual state based on token value
+  // If token was picked up (tokenValue = 0), cell should have low opacity
+  const cellOpacity = tokenValue === 0 ? 0.2 : 0.7;
+  cell.setStyle({ fillOpacity: cellOpacity });
 
   // Always bind tooltip and click handler, regardless of range
   // This ensures cells can be interacted with when the player moves into range
@@ -209,7 +219,9 @@ function createCell(cellId: CellId): GameCell | null {
     if (playerInventory === null) {
       // Player picks up token from this cell
       playerInventory = cell.tokenValue;
-      cell.tokenLabel.remove();
+      if (cell.tokenLabel) {
+        cell.tokenLabel.remove();
+      }
       cell.tokenValue = 0;
       cell.setStyle({ fillOpacity: 0.2 });
 
@@ -221,7 +233,9 @@ function createCell(cellId: CellId): GameCell | null {
       playerInventory = null;
       cell.tokenValue = newValue;
       const center = cellIdToCenterLatLng(cellId);
-      cell.tokenLabel.remove();
+      if (cell.tokenLabel) {
+        cell.tokenLabel.remove();
+      }
       cell.tokenLabel = leaflet.marker(center, {
         icon: leaflet.divIcon({
           className: "token-label",
@@ -247,7 +261,9 @@ function createCell(cellId: CellId): GameCell | null {
 function despawnCell(cellKey: string): void {
   const cell = visibleCells.get(cellKey);
   if (cell) {
-    cell.tokenLabel.remove();
+    if (cell.tokenLabel) {
+      cell.tokenLabel.remove();
+    }
     cell.remove();
     visibleCells.delete(cellKey);
   }
