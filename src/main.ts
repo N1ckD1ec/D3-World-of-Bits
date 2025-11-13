@@ -17,6 +17,7 @@ type CellId = {
 type Cell = {
   id: CellId;
   tokenValue: number;
+  isPickedUp?: boolean; // true if token has been picked up from this cell
 };
 
 // Required stylesheets
@@ -118,7 +119,9 @@ const TARGET_VALUE = 16; // Player wins when they get a token of this value
 // Player position tracking (in grid coordinates)
 const playerCellPosition: CellId = { i: 0, j: 0 };
 
-// Map to store the state of all cells (modified cells only - unmodified use Flyweight pattern)
+// Map to store the state of all cells (both original and modified)
+// When a cell is first seen, its generated token value is stored here
+// When a cell is modified (token picked up or combined), the new value is stored here
 // Key: "i,j" string, Value: Cell state (token value)
 const _cellStateMap = new Map<string, Cell>();
 
@@ -136,20 +139,31 @@ function getCellKey(cellId: CellId): string {
 }
 
 // Function to get token value for a cell (from state map or generate via luck)
-// This implements the Flyweight pattern: unmodified cells use luck, modified cells use stored state
+// Returns 0 if token has been picked up, otherwise returns the stored or generated value
 function getCellTokenValue(cellId: CellId): number {
   const cellKey = _getCellStateKey(cellId);
   const storedCell = _cellStateMap.get(cellKey);
 
   if (storedCell) {
-    // Cell state exists in the map (has been modified), use stored value
+    // Cell state exists in the map
+    // If the token has been picked up, return 0 (empty cell)
+    if (storedCell.isPickedUp) {
+      return 0;
+    }
+    // Otherwise return the stored token value
     return storedCell.tokenValue;
   } else {
-    // Cell hasn't been modified, generate value from luck (Flyweight - no storage needed)
-    return Math.pow(
+    // Cell hasn't been seen before, generate value from luck
+    const generatedValue = Math.pow(
       2,
       Math.floor(luck([cellId.i, cellId.j, "value"].toString()) * 3),
     );
+
+    // Save the generated value to the state map so it persists when the cell goes off-screen
+    // This ensures cells keep their original token value even when off-screen
+    _cellStateMap.set(cellKey, { id: cellId, tokenValue: generatedValue });
+
+    return generatedValue;
   }
 }
 
@@ -225,8 +239,12 @@ function createCell(cellId: CellId): GameCell | null {
       cell.tokenValue = 0;
       cell.setStyle({ fillOpacity: 0.2 });
 
-      // Persist the cell's new state (empty cell with tokenValue 0)
-      _cellStateMap.set(cellKey, { id: cellId, tokenValue: 0 });
+      // Mark the cell as picked up so it stays empty even when off-screen
+      // The original token value is preserved in the state map
+      const cellState = _cellStateMap.get(cellKey);
+      if (cellState) {
+        cellState.isPickedUp = true;
+      }
     } else if (playerInventory === cell.tokenValue) {
       // Player combines tokens
       const newValue = playerInventory * 2;
@@ -248,7 +266,12 @@ function createCell(cellId: CellId): GameCell | null {
       cell.setStyle({ fillOpacity: 0.7 });
 
       // Persist the cell's new state (combined token with higher value)
-      _cellStateMap.set(cellKey, { id: cellId, tokenValue: newValue });
+      // Clear the isPickedUp flag since we've placed a new token on it
+      const cellState = _cellStateMap.get(cellKey);
+      if (cellState) {
+        cellState.tokenValue = newValue;
+        cellState.isPickedUp = false;
+      }
     }
     updateStatus();
   });
@@ -324,18 +347,79 @@ function updateCellInteractivity() {
 // Function to verify and log Flyweight pattern efficiency
 // Demonstrates that unmodified cells don't use memory (not in _cellStateMap)
 function _logFlyweightPatternStatus() {
-  const modifiedCount = _cellStateMap.size;
+  const storedCount = _cellStateMap.size;
   const visibleCount = visibleCells.size;
-  const unmodifiedCount = visibleCount - modifiedCount;
 
   console.log(
-    `[Flyweight Pattern] Modified cells in memory: ${modifiedCount}, Unmodified cells (generated on-the-fly): ${unmodifiedCount}, Total visible: ${visibleCount}`,
+    `[Cell Persistence] Cells in memory (seen and stored): ${storedCount}, Cells currently visible: ${visibleCount}`,
   );
 
-  // Show which cells are modified
-  if (modifiedCount > 0) {
-    const modifiedKeys = Array.from(_cellStateMap.keys());
-    console.log(`Modified cell coordinates: ${modifiedKeys.join(", ")}`);
+  // Show which cells are stored
+  if (storedCount > 0) {
+    const storedKeys = Array.from(_cellStateMap.keys());
+    console.log(`Stored cell coordinates: ${storedKeys.join(", ")}`);
+  }
+}
+
+// Function to test and verify that cell states persist when off-screen and returning
+function _testCellStatePersistence() {
+  console.log(
+    "[Persistence Test] Checking if cell states are correctly restored...",
+  );
+
+  let testsPassed = 0;
+  let testsFailed = 0;
+
+  // For each visible cell, verify its state matches what's stored
+  visibleCells.forEach((cell, cellKey) => {
+    const [i, j] = cellKey.split(",").map(Number);
+    const cellId: CellId = { i, j };
+    const expectedValue = getCellTokenValue(cellId);
+    const actualValue = cell.tokenValue;
+
+    if (expectedValue === actualValue) {
+      testsPassed++;
+    } else {
+      testsFailed++;
+      console.warn(
+        `[Persistence Test] FAILED: Cell (${i},${j}) expected value ${expectedValue} but got ${actualValue}`,
+      );
+    }
+
+    // Verify visual state matches token value
+    const hasLabel = cell.tokenLabel !== null;
+    const shouldHaveLabel = actualValue > 0;
+    if (hasLabel === shouldHaveLabel) {
+      testsPassed++;
+    } else {
+      testsFailed++;
+      console.warn(
+        `[Persistence Test] FAILED: Cell (${i},${j}) label state mismatch. Has label: ${hasLabel}, Should have: ${shouldHaveLabel}`,
+      );
+    }
+
+    // Verify opacity matches state (empty cells have low opacity)
+    const opacity = (cell.options.fillOpacity as number) || 0.7;
+    const expectedOpacity = actualValue === 0 ? 0.2 : 0.7;
+    const opacityMatch = Math.abs(opacity - expectedOpacity) < 0.01;
+    if (opacityMatch) {
+      testsPassed++;
+    } else {
+      testsFailed++;
+      console.warn(
+        `[Persistence Test] FAILED: Cell (${i},${j}) opacity mismatch. Expected ${expectedOpacity} but got ${opacity}`,
+      );
+    }
+  });
+
+  console.log(
+    `[Persistence Test] Results: ${testsPassed} passed, ${testsFailed} failed`,
+  );
+
+  if (testsFailed === 0 && testsPassed > 0) {
+    console.log(
+      "[Persistence Test] ✓ All persistence tests PASSED! Cell states are correctly restored.",
+    );
   }
 }
 
@@ -357,6 +441,9 @@ function movePlayer(directionI: number, directionJ: number) {
 
   // Log Flyweight pattern efficiency
   _logFlyweightPatternStatus();
+
+  // Test and verify cell state persistence
+  _testCellStatePersistence();
 }
 
 // Function to check if a cell is within interaction range of the player

@@ -60,4 +60,4 @@ Key gameplay challenge: Can players experience persistent cell state as they nav
 - [x] implement state persistence: when a cell is modified (token picked up or combined), update the state Map
 - [x] implement state restoration: when a cell comes back into view, restore its state from the Map
 - [x] cells with unmodified state (not in the Map) don't use memory until modified
-- [ ] test that cell states persist when scrolling off-screen and returning
+- [x] test that cell states persist when scrolling off-screen and returning
