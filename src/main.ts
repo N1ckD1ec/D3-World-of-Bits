@@ -13,6 +13,12 @@ type CellId = {
   j: number;
 };
 
+// Cell state type - represents the persistent state of a cell (location + token value)
+type Cell = {
+  id: CellId;
+  tokenValue: number;
+};
+
 // Required stylesheets
 import "leaflet/dist/leaflet.css";
 import "./style.css";
@@ -111,6 +117,15 @@ const TARGET_VALUE = 16; // Player wins when they get a token of this value
 
 // Player position tracking (in grid coordinates)
 const playerCellPosition: CellId = { i: 0, j: 0 };
+
+// Map to store the state of all cells (modified cells only - unmodified use Flyweight pattern)
+// Key: "i,j" string, Value: Cell state (token value)
+const _cellStateMap = new Map<string, Cell>();
+
+// Helper function to create a key for a cell state
+function _getCellStateKey(cellId: CellId): string {
+  return `${cellId.i},${cellId.j}`;
+}
 
 // Map to store currently visible cells on screen by their cell ID key
 const visibleCells = new Map<string, GameCell>();

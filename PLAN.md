@@ -35,7 +35,7 @@ Key technical challenge: Can you implement dynamic cell spawning/despawning as t
 Key gameplay challenge: Can players navigate the map to find and combine tokens strategically?
 
 ### Steps
- 
+
 - [x] create a data type (CellId) to represent grid cells as i,j pairs
 - [x] create functions to convert lat/lng to cell coordinates and vice versa
 - [x] add movement buttons to move player one grid step
@@ -54,8 +54,8 @@ Key gameplay challenge: Can players experience persistent cell state as they nav
 
 ### Steps
 
-- [ ] create a Cell data type to model cell state (coordinates + token value) separately from visual representation
-- [ ] create a Map<CellId, Cell> to store the state of all cells (modified and unmodified)
+- [x] create a Cell data type to model cell state (coordinates + token value) separately from visual representation
+- [x] create a Map<CellId, Cell> to store the state of all cells (modified and unmodified)
 - [ ] refactor to rebuild cell visuals from the state Map on each map movement
 - [ ] implement state persistence: when a cell is modified (token picked up or combined), update the state Map
 - [ ] implement state restoration: when a cell comes back into view, restore its state from the Map
