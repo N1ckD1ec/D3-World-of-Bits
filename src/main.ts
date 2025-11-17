@@ -43,6 +43,23 @@ import "./_leafletWorkaround.ts";
 // Import luck function for deterministic randomness
 import luck from "./_luck.ts";
 
+// Function to get query string parameter value
+function _getQueryParam(paramName: string): string | null {
+  const params = new URLSearchParams(globalThis.location.search);
+  return params.get(paramName);
+}
+
+// Determine movement type from query string or default to "buttons"
+// Usage: ?movement=geolocation or ?movement=buttons
+function _getMovementType(): "buttons" | "geolocation" {
+  const movementType = _getQueryParam("movement");
+  if (movementType === "geolocation" || movementType === "buttons") {
+    return movementType;
+  }
+  // Default to buttons
+  return "buttons";
+}
+
 // Create UI elements
 const mapDiv = document.createElement("div");
 mapDiv.id = "map";
