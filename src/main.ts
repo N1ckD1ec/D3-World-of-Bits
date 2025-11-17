@@ -43,6 +43,65 @@ import "./_leafletWorkaround.ts";
 // Import luck function for deterministic randomness
 import luck from "./_luck.ts";
 
+// Function to serialize game state to JSON for localStorage
+function _serializeGameState() {
+  return {
+    playerPosition: playerCellPosition,
+    playerInventory: playerInventory,
+    cellStates: Array.from(_cellStateMap.entries()),
+  };
+}
+
+// Function to save game state to localStorage
+function _saveGameState() {
+  try {
+    const gameState = _serializeGameState();
+    globalThis.localStorage.setItem(
+      "d3_game_state",
+      JSON.stringify(gameState),
+    );
+  } catch (error) {
+    console.error("Failed to save game state:", error);
+  }
+}
+
+// Function to load game state from localStorage
+function _loadGameState(): boolean {
+  try {
+    const savedState = globalThis.localStorage.getItem("d3_game_state");
+    if (!savedState) {
+      return false;
+    }
+
+    const gameState = JSON.parse(savedState);
+
+    // Restore player position
+    if (gameState.playerPosition) {
+      playerCellPosition.i = gameState.playerPosition.i;
+      playerCellPosition.j = gameState.playerPosition.j;
+    }
+
+    // Restore player inventory
+    if (gameState.playerInventory !== undefined) {
+      playerInventory = gameState.playerInventory;
+    }
+
+    // Restore cell states
+    if (gameState.cellStates && Array.isArray(gameState.cellStates)) {
+      _cellStateMap.clear();
+      for (const [key, cell] of gameState.cellStates) {
+        _cellStateMap.set(key, cell as Cell);
+      }
+    }
+
+    console.log("[Game State] Loaded saved game state from localStorage");
+    return true;
+  } catch (error) {
+    console.error("Failed to load game state:", error);
+    return false;
+  }
+}
+
 // Function to get query string parameter value
 function _getQueryParam(paramName: string): string | null {
   const params = new URLSearchParams(globalThis.location.search);
@@ -275,6 +334,9 @@ function createCell(cellId: CellId): GameCell | null {
       if (cellState) {
         cellState.isPickedUp = true;
       }
+
+      // Save game state to localStorage
+      _saveGameState();
     } else if (playerInventory === cell.tokenValue) {
       // Player combines tokens
       const newValue = playerInventory * 2;
@@ -302,6 +364,9 @@ function createCell(cellId: CellId): GameCell | null {
         cellState.tokenValue = newValue;
         cellState.isPickedUp = false;
       }
+
+      // Save game state to localStorage
+      _saveGameState();
     }
     updateStatus();
   });
@@ -474,6 +539,9 @@ function movePlayer(directionI: number, directionJ: number) {
 
   // Test and verify cell state persistence
   _testCellStatePersistence();
+
+  // Save game state to localStorage
+  _saveGameState();
 }
 
 // Function to check if a cell is within interaction range of the player
@@ -681,6 +749,9 @@ const playerMarker = leaflet.marker(CLASSROOM_LOCATION, {
 });
 playerMarker.bindTooltip("You are here!");
 playerMarker.addTo(map);
+
+// Load saved game state from localStorage if it exists
+_loadGameState();
 
 // Set initial game status and render initial cells
 updateStatus();
