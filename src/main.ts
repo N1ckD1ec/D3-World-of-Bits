@@ -153,6 +153,27 @@ eastBtn.textContent = "East (→)";
 eastBtn.id = "eastBtn";
 controlPanelDiv.append(eastBtn);
 
+// Create New Game button
+const newGameBtn = document.createElement("button");
+newGameBtn.textContent = "New Game";
+newGameBtn.id = "newGameBtn";
+controlPanelDiv.append(newGameBtn);
+
+// Function to start a new game (clear localStorage and reload)
+function _startNewGame() {
+  try {
+    globalThis.localStorage.removeItem("d3_game_state");
+    console.log("[Game State] Cleared saved game state");
+    // Reload the page to start fresh
+    globalThis.location.reload();
+  } catch (error) {
+    console.error("Failed to start new game:", error);
+  }
+}
+
+// Attach New Game button listener
+newGameBtn.addEventListener("click", () => _startNewGame());
+
 // Initialize player state and game constants
 const CLASSROOM_LOCATION = [36.997936938057016, -122.05703507501151] as [
   number,

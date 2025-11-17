@@ -74,6 +74,6 @@ Key gameplay challenge: Can players experience the game across real-world distan
 - [x] add query string parsing to determine movement type (e.g., ?movement=geolocation or ?movement=buttons)
 - [x] refactor game code to use PlayerMovement interface instead of direct button listeners
 - [x] implement localStorage persistence: save game state (player position, inventory, cell states) on every change
-- [ ] implement localStorage restoration: load saved game state on page load if it exists
-- [ ] add a "New Game" button to clear localStorage and start fresh
+- [x] implement localStorage restoration: load saved game state on page load if it exists
+- [x] add a "New Game" button to clear localStorage and start fresh
 - [ ] add a "Movement Type" selector to switch between button and geolocation modes at runtime
