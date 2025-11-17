@@ -502,6 +502,84 @@ class _ButtonMovement implements PlayerMovement {
   }
 }
 
+// GeolocationMovement class - implements PlayerMovement interface
+// Handles player movement via device geolocation (GPS)
+class _GeolocationMovement implements PlayerMovement {
+  private moveCallback:
+    | ((directionI: number, directionJ: number) => void)
+    | null = null;
+  private watchId: number | null = null;
+  private lastPosition: { lat: number; lng: number } | null = null;
+
+  onMove(
+    callback: (directionI: number, directionJ: number) => void,
+  ): void {
+    this.moveCallback = callback;
+  }
+
+  activate(): void {
+    if (!navigator.geolocation) {
+      console.error("Geolocation not supported");
+      return;
+    }
+
+    // Hide buttons when using geolocation
+    controlPanelDiv.style.display = "none";
+
+    // Watch device position
+    this.watchId = navigator.geolocation.watchPosition(
+      (position) => this._handlePositionUpdate(position),
+      (error) => console.error("Geolocation error:", error),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000,
+      },
+    );
+  }
+
+  deactivate(): void {
+    // Stop watching position
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    }
+    // Show buttons again
+    controlPanelDiv.style.display = "flex";
+  }
+
+  isAvailable(): boolean {
+    return !!navigator.geolocation;
+  }
+
+  private _handlePositionUpdate(position: GeolocationPosition): void {
+    const { latitude: lat, longitude: lng } = position.coords;
+    const currentPos = { lat, lng };
+
+    if (this.lastPosition === null) {
+      this.lastPosition = currentPos;
+      return;
+    }
+
+    // Calculate cell movement based on position change
+    const latDiff = lat - this.lastPosition.lat;
+    const lngDiff = lng - this.lastPosition.lng;
+
+    // Each cell is CELL_SIZE_DEGREES degrees
+    // Calculate movement in cells
+    const cellMovementI = Math.round(latDiff / CELL_SIZE_DEGREES);
+    const cellMovementJ = Math.round(lngDiff / CELL_SIZE_DEGREES);
+
+    // Only move if cell position changed
+    if (cellMovementI !== 0 || cellMovementJ !== 0) {
+      if (this.moveCallback) {
+        this.moveCallback(cellMovementI, cellMovementJ);
+      }
+      this.lastPosition = currentPos;
+    }
+  }
+}
+
 // Attach button event listeners
 northBtn.addEventListener("click", () => movePlayer(1, 0));
 southBtn.addEventListener("click", () => movePlayer(-1, 0));
