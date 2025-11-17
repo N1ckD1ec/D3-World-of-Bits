@@ -69,7 +69,7 @@ Key gameplay challenge: Can players experience the game across real-world distan
 
 ### Steps
 
-- [ ] create a PlayerMovement interface (Facade) that abstracts button-based vs geolocation-based movement
+- [x] create a PlayerMovement interface (Facade) that abstracts button-based vs geolocation-based movement
 - [ ] implement ButtonMovement class that uses the existing on-screen buttons
 - [ ] implement GeolocationMovement class that uses browser geolocation API
 - [ ] add query string parsing to determine movement type (e.g., ?movement=geolocation or ?movement=buttons)

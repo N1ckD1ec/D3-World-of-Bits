@@ -20,6 +20,19 @@ type Cell = {
   isPickedUp?: boolean; // true if token has been picked up from this cell
 };
 
+// PlayerMovement interface (Facade pattern)
+// This abstracts how the player character moves (buttons vs geolocation)
+interface PlayerMovement {
+  // Register a callback to be called when player should move in a direction
+  onMove(callback: (directionI: number, directionJ: number) => void): void;
+  // Activate the movement system
+  activate(): void;
+  // Deactivate the movement system
+  deactivate(): void;
+  // Check if this movement system is available in the current environment
+  isAvailable(): boolean;
+}
+
 // Required stylesheets
 import "leaflet/dist/leaflet.css";
 import "./style.css";
@@ -451,6 +464,42 @@ function isInRange(cellI: number, cellJ: number): boolean {
   const di = cellI - playerCellPosition.i;
   const dj = cellJ - playerCellPosition.j;
   return Math.abs(di) <= INTERACTION_RANGE && Math.abs(dj) <= INTERACTION_RANGE;
+}
+
+// ButtonMovement class - implements PlayerMovement interface
+// Handles player movement via on-screen buttons
+class _ButtonMovement implements PlayerMovement {
+  private moveCallback:
+    | ((directionI: number, directionJ: number) => void)
+    | null = null;
+
+  onMove(
+    callback: (directionI: number, directionJ: number) => void,
+  ): void {
+    this.moveCallback = callback;
+  }
+
+  activate(): void {
+    // Attach button listeners
+    if (this.moveCallback) {
+      northBtn.addEventListener("click", () => this.moveCallback!(1, 0));
+      southBtn.addEventListener("click", () => this.moveCallback!(-1, 0));
+      westBtn.addEventListener("click", () => this.moveCallback!(0, -1));
+      eastBtn.addEventListener("click", () => this.moveCallback!(0, 1));
+    }
+    // Show buttons
+    controlPanelDiv.style.display = "flex";
+  }
+
+  deactivate(): void {
+    // Hide buttons
+    controlPanelDiv.style.display = "none";
+  }
+
+  isAvailable(): boolean {
+    // Buttons are always available
+    return true;
+  }
 }
 
 // Attach button event listeners
