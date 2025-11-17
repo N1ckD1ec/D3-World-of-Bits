@@ -61,3 +61,20 @@ Key gameplay challenge: Can players experience persistent cell state as they nav
 - [x] implement state restoration: when a cell comes back into view, restore its state from the Map
 - [x] cells with unmodified state (not in the Map) don't use memory until modified
 - [x] test that cell states persist when scrolling off-screen and returning
+
+## D3.d: Gameplay Across Real-world Space and Time
+
+Key technical challenge: Can you implement a Facade pattern for player movement and persist game state across page loads using localStorage?
+Key gameplay challenge: Can players experience the game across real-world distances and time by moving their device and closing/reopening the page?
+
+### Steps
+
+- [ ] create a PlayerMovement interface (Facade) that abstracts button-based vs geolocation-based movement
+- [ ] implement ButtonMovement class that uses the existing on-screen buttons
+- [ ] implement GeolocationMovement class that uses browser geolocation API
+- [ ] add query string parsing to determine movement type (e.g., ?movement=geolocation or ?movement=buttons)
+- [ ] refactor game code to use PlayerMovement interface instead of direct button listeners
+- [ ] implement localStorage persistence: save game state (player position, inventory, cell states) on every change
+- [ ] implement localStorage restoration: load saved game state on page load if it exists
+- [ ] add a "New Game" button to clear localStorage and start fresh
+- [ ] add a "Movement Type" selector to switch between button and geolocation modes at runtime
