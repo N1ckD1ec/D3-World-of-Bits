@@ -597,11 +597,24 @@ class _GeolocationMovement implements PlayerMovement {
   }
 }
 
-// Attach button event listeners
-northBtn.addEventListener("click", () => movePlayer(1, 0));
-southBtn.addEventListener("click", () => movePlayer(-1, 0));
-westBtn.addEventListener("click", () => movePlayer(0, -1));
-eastBtn.addEventListener("click", () => movePlayer(0, 1));
+// Create movement system instances
+const buttonMovement = new _ButtonMovement();
+const geolocationMovement = new _GeolocationMovement();
+
+// Determine which movement system to use based on query string
+const movementType = _getMovementType();
+const activeMovement: PlayerMovement =
+  movementType === "geolocation" && geolocationMovement.isAvailable()
+    ? geolocationMovement
+    : buttonMovement;
+
+// Register the movePlayer callback with the active movement system
+activeMovement.onMove((directionI, directionJ) => {
+  movePlayer(directionI, directionJ);
+});
+
+// Activate the movement system (this will set up button listeners or geolocation tracking)
+activeMovement.activate();
 
 // Set up the map centered on the UCSC Science Hill area
 const map = leaflet.map(mapDiv, {
