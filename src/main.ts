@@ -159,6 +159,41 @@ newGameBtn.textContent = "New Game";
 newGameBtn.id = "newGameBtn";
 controlPanelDiv.append(newGameBtn);
 
+// Create Movement Type selector button
+const movementTypeBtn = document.createElement("button");
+movementTypeBtn.textContent = "Movement: Buttons";
+movementTypeBtn.id = "movementTypeBtn";
+controlPanelDiv.append(movementTypeBtn);
+
+// Create a separate persistent panel for always-visible controls (New Game in geolocation mode)
+const persistentControlDiv = document.createElement("div");
+persistentControlDiv.id = "persistentControls";
+persistentControlDiv.style.cssText =
+  "position: fixed; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 1000;";
+document.body.append(persistentControlDiv);
+
+// Create persistent New Game button (visible in geolocation mode)
+const persistentNewGameBtn = document.createElement("button");
+persistentNewGameBtn.textContent = "New Game";
+persistentNewGameBtn.id = "persistentNewGameBtn";
+persistentNewGameBtn.style.display = "none"; // Hidden by default, shown in geolocation mode
+persistentControlDiv.append(persistentNewGameBtn);
+
+// Create persistent Movement Type button (visible in geolocation mode to switch back)
+const persistentMovementTypeBtn = document.createElement("button");
+persistentMovementTypeBtn.textContent = "Switch to: Buttons";
+persistentMovementTypeBtn.id = "persistentMovementTypeBtn";
+persistentMovementTypeBtn.style.display = "none"; // Hidden by default, shown in geolocation mode
+persistentControlDiv.append(persistentMovementTypeBtn);
+
+// Create persistent status display (visible in geolocation mode)
+const persistentStatusDiv = document.createElement("div");
+persistentStatusDiv.id = "persistentStatus";
+persistentStatusDiv.style.cssText =
+  "background: rgba(0, 0, 0, 0.7); color: #fff; padding: 10px 15px; border-radius: 8px; font-size: 14px; min-width: 200px; display: none; text-align: left;";
+persistentStatusDiv.textContent = "Status: Loading...";
+persistentControlDiv.append(persistentStatusDiv);
+
 // Function to start a new game (clear localStorage and reload)
 function _startNewGame() {
   try {
@@ -171,8 +206,57 @@ function _startNewGame() {
   }
 }
 
+// Function to switch movement type at runtime
+function _switchMovementType(newType: "buttons" | "geolocation") {
+  // Save the new movement type preference to localStorage
+  try {
+    globalThis.localStorage.setItem("d3_movement_type", newType);
+  } catch (error) {
+    console.error("Failed to save movement type:", error);
+  }
+
+  // Reload page with new movement type in query string
+  const url = new URL(globalThis.location.href);
+  url.searchParams.set("movement", newType);
+  globalThis.location.href = url.toString();
+}
+
 // Attach New Game button listener
 newGameBtn.addEventListener("click", () => _startNewGame());
+
+// Attach persistent New Game button listener
+persistentNewGameBtn.addEventListener("click", () => _startNewGame());
+
+// Attach persistent Movement Type button listener
+persistentMovementTypeBtn.addEventListener("click", () => {
+  const currentType = _getMovementType();
+  const newType = currentType === "geolocation" ? "buttons" : "geolocation";
+
+  // Check if geolocation is available
+  if (newType === "geolocation" && !navigator.geolocation) {
+    console.error("Geolocation not available on this device");
+    persistentMovementTypeBtn.textContent =
+      "Movement: Geolocation (Not Available)";
+    return;
+  }
+
+  _switchMovementType(newType);
+});
+
+// Attach Movement Type selector listener
+movementTypeBtn.addEventListener("click", () => {
+  const currentType = _getMovementType();
+  const newType = currentType === "geolocation" ? "buttons" : "geolocation";
+
+  // Check if geolocation is available
+  if (newType === "geolocation" && !navigator.geolocation) {
+    console.error("Geolocation not available on this device");
+    movementTypeBtn.textContent = "Movement: Geolocation (Not Available)";
+    return;
+  }
+
+  _switchMovementType(newType);
+});
 
 // Initialize player state and game constants
 const CLASSROOM_LOCATION = [36.997936938057016, -122.05703507501151] as [
@@ -227,7 +311,11 @@ let playerInventory: number | null = null;
 const TARGET_VALUE = 16; // Player wins when they get a token of this value
 
 // Player position tracking (in grid coordinates)
-const playerCellPosition: CellId = { i: 0, j: 0 };
+let playerCellPosition: CellId = { i: 0, j: 0 };
+
+// Map object and player marker (will be initialized during game setup)
+let map!: leaflet.Map;
+let playerMarker!: leaflet.Marker;
 
 // Map to store the state of all cells (both original and modified)
 // When a cell is first seen, its generated token value is stored here
@@ -425,7 +513,11 @@ function updateStatus() {
     mainStatus = `Holding token with value: ${playerInventory}`;
   }
 
-  statusDiv.textContent = `${mainStatus} ${memoryInfo}`;
+  const fullStatus = `${mainStatus} ${memoryInfo}`;
+  statusDiv.textContent = fullStatus;
+
+  // Also update persistent status display for geolocation mode
+  persistentStatusDiv.textContent = mainStatus;
 }
 
 // Function to create cell bounds from cell coordinates (i,j)
@@ -595,6 +687,10 @@ class _ButtonMovement implements PlayerMovement {
     }
     // Show buttons
     controlPanelDiv.style.display = "flex";
+    // Hide persistent controls in button mode
+    persistentNewGameBtn.style.display = "none";
+    persistentMovementTypeBtn.style.display = "none";
+    persistentStatusDiv.style.display = "none";
   }
 
   deactivate(): void {
@@ -616,11 +712,48 @@ class _GeolocationMovement implements PlayerMovement {
     | null = null;
   private watchId: number | null = null;
   private lastPosition: { lat: number; lng: number } | null = null;
+  private initialPosition: { lat: number; lng: number } | null = null;
 
   onMove(
     callback: (directionI: number, directionJ: number) => void,
   ): void {
     this.moveCallback = callback;
+  }
+
+  // Get the initial GPS position (waits for first position reading)
+  getInitialPosition(): Promise<{ lat: number; lng: number } | null> {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        resolve(null);
+      }, 5000);
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          clearTimeout(timeout);
+          const pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          this.initialPosition = pos;
+          resolve(pos);
+        },
+        (error) => {
+          clearTimeout(timeout);
+          console.error("Geolocation error:", error);
+          resolve(null);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0,
+        },
+      );
+    });
   }
 
   activate(): void {
@@ -631,11 +764,24 @@ class _GeolocationMovement implements PlayerMovement {
 
     // Hide buttons when using geolocation
     controlPanelDiv.style.display = "none";
+    // Show persistent controls (New Game button, movement switch, and status) in geolocation mode
+    persistentNewGameBtn.style.display = "block";
+    persistentMovementTypeBtn.style.display = "block";
+    persistentStatusDiv.style.display = "block";
+
+    console.log(
+      "[Geolocation] Starting device location tracking with high accuracy",
+    );
 
     // Watch device position
     this.watchId = navigator.geolocation.watchPosition(
       (position) => this._handlePositionUpdate(position),
-      (error) => console.error("Geolocation error:", error),
+      (error) => {
+        console.error("Geolocation error:", error);
+        // Fallback to buttons on error
+        this.deactivate();
+        controlPanelDiv.style.display = "flex";
+      },
       {
         enableHighAccuracy: true,
         maximumAge: 0,
@@ -652,6 +798,10 @@ class _GeolocationMovement implements PlayerMovement {
     }
     // Show buttons again
     controlPanelDiv.style.display = "flex";
+    // Hide persistent controls when exiting geolocation mode
+    persistentNewGameBtn.style.display = "none";
+    persistentMovementTypeBtn.style.display = "none";
+    persistentStatusDiv.style.display = "none";
   }
 
   isAvailable(): boolean {
@@ -661,6 +811,12 @@ class _GeolocationMovement implements PlayerMovement {
   private _handlePositionUpdate(position: GeolocationPosition): void {
     const { latitude: lat, longitude: lng } = position.coords;
     const currentPos = { lat, lng };
+
+    // Update player marker to actual GPS position
+    playerMarker.setLatLng([lat, lng]);
+
+    // Update map view to follow player's real-world location
+    map.setView([lat, lng], 19);
 
     if (this.lastPosition === null) {
       this.lastPosition = currentPos;
@@ -697,85 +853,120 @@ const activeMovement: PlayerMovement =
     ? geolocationMovement
     : buttonMovement;
 
+// Update the movement type button text to show what mode you'll switch TO
+movementTypeBtn.textContent = activeMovement === geolocationMovement
+  ? "Switch to: Buttons"
+  : "Switch to: Geolocation";
+
 // Register the movePlayer callback with the active movement system
 activeMovement.onMove((directionI, directionJ) => {
   movePlayer(directionI, directionJ);
 });
 
-// Activate the movement system (this will set up button listeners or geolocation tracking)
-activeMovement.activate();
+// Initialize the game (async to handle geolocation)
+async function _initializeGame() {
+  let mapCenter: [number, number] = CLASSROOM_LOCATION;
 
-// Set up the map centered on the UCSC Science Hill area
-const map = leaflet.map(mapDiv, {
-  center: CLASSROOM_LOCATION,
-  zoom: 19,
-});
+  // First, try to load saved game state from localStorage
+  const hasSavedGame = _loadGameState();
 
-// Add the OpenStreetMap tile layer
-leaflet
-  .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  })
-  .addTo(map);
+  // If no saved game and using geolocation, get the player's initial position
+  if (!hasSavedGame && activeMovement === geolocationMovement) {
+    const initialPos = await geolocationMovement.getInitialPosition();
+    if (initialPos) {
+      mapCenter = [initialPos.lat, initialPos.lng];
+      // Convert GPS to cell coordinates and set starting position
+      const cellId = _latLngToCellId(initialPos.lat, initialPos.lng);
+      playerCellPosition = cellId;
+      console.log(
+        `[Geolocation] Player starting at GPS (${initialPos.lat.toFixed(4)}, ${
+          initialPos.lng.toFixed(4)
+        }) → Cell (${cellId.i}, ${cellId.j})`,
+      );
+    }
+  } else if (hasSavedGame) {
+    // If we have a saved game, convert player position to map center
+    mapCenter = cellIdToCenterLatLng(playerCellPosition);
+    console.log(
+      `[Game State] Resuming from saved position: Cell (${playerCellPosition.i}, ${playerCellPosition.j})`,
+    );
+  }
 
-// Listen for map movement events
-map.on("moveend", () => {
-  const bounds = map.getBounds();
+  // Set up the map centered on player's location
+  map = leaflet.map(mapDiv, {
+    center: mapCenter,
+    zoom: 19,
+  });
 
-  // Convert map bounds to cell coordinates
-  const swCellId = _latLngToCellId(bounds.getSouth(), bounds.getWest());
-  const neCellId = _latLngToCellId(bounds.getNorth(), bounds.getEast());
+  // Add the OpenStreetMap tile layer
+  leaflet
+    .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    })
+    .addTo(map);
 
-  // Add padding to spawn/despawn range for smooth transitions
-  const padding = 2;
-  const minI = swCellId.i - padding;
-  const maxI = neCellId.i + padding;
-  const minJ = swCellId.j - padding;
-  const maxJ = neCellId.j + padding;
+  // Activate the movement system after map is created
+  activeMovement.activate();
 
-  // Spawn cells in the visible area
-  for (let i = minI; i <= maxI; i++) {
-    for (let j = minJ; j <= maxJ; j++) {
-      const cellKey = getCellKey({ i, j });
-      if (!visibleCells.has(cellKey)) {
-        const cell = createCell({ i, j });
-        if (cell) {
-          visibleCells.set(cellKey, cell);
+  // Listen for map movement events
+  map.on("moveend", () => {
+    const bounds = map.getBounds();
+
+    // Convert map bounds to cell coordinates
+    const swCellId = _latLngToCellId(bounds.getSouth(), bounds.getWest());
+    const neCellId = _latLngToCellId(bounds.getNorth(), bounds.getEast());
+
+    // Add padding to spawn/despawn range for smooth transitions
+    const padding = 2;
+    const minI = swCellId.i - padding;
+    const maxI = neCellId.i + padding;
+    const minJ = swCellId.j - padding;
+    const maxJ = neCellId.j + padding;
+
+    // Spawn cells in the visible area
+    for (let i = minI; i <= maxI; i++) {
+      for (let j = minJ; j <= maxJ; j++) {
+        const cellKey = getCellKey({ i, j });
+        if (!visibleCells.has(cellKey)) {
+          const cell = createCell({ i, j });
+          if (cell) {
+            visibleCells.set(cellKey, cell);
+          }
         }
       }
     }
-  }
 
-  // Despawn cells outside the visible area
-  const cellsToRemove: string[] = [];
-  visibleCells.forEach((_, cellKey) => {
-    const [i, j] = cellKey.split(",").map(Number);
-    if (i < minI || i > maxI || j < minJ || j > maxJ) {
-      cellsToRemove.push(cellKey);
-    }
+    // Despawn cells outside the visible area
+    const cellsToRemove: string[] = [];
+    visibleCells.forEach((_, cellKey) => {
+      const [i, j] = cellKey.split(",").map(Number);
+      if (i < minI || i > maxI || j < minJ || j > maxJ) {
+        cellsToRemove.push(cellKey);
+      }
+    });
+
+    cellsToRemove.forEach((cellKey) => despawnCell(cellKey));
   });
 
-  cellsToRemove.forEach((cellKey) => despawnCell(cellKey));
-});
+  // Add the player marker at the current location with custom color
+  playerMarker = leaflet.marker(mapCenter, {
+    icon: leaflet.divIcon({
+      className: "red-marker",
+      html: "🚩",
+      iconSize: [50, 50],
+    }),
+  });
+  playerMarker.bindTooltip("You are here!");
+  playerMarker.addTo(map);
 
-// Add the player marker at the classroom location with custom color
-const playerMarker = leaflet.marker(CLASSROOM_LOCATION, {
-  icon: leaflet.divIcon({
-    className: "red-marker",
-    html: "🚩",
-    iconSize: [50, 50],
-  }),
-});
-playerMarker.bindTooltip("You are here!");
-playerMarker.addTo(map);
+  // Set initial game status and render initial cells
+  updateStatus();
 
-// Load saved game state from localStorage if it exists
-_loadGameState();
+  // Trigger initial cell rendering
+  map.fire("moveend");
+}
 
-// Set initial game status and render initial cells
-updateStatus();
-
-// Trigger initial cell rendering
-map.fire("moveend");
+// Initialize the game when the script loads
+_initializeGame();
